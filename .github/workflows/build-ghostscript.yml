@@ -33,7 +33,7 @@ jobs:
           ./scripts/feeds install libcups libjpeg-turbo libpng zlib freetype
           make defconfig
 
-          # 手动下载 Ghostscript 源码包，放入 dl 目录，绕过哈希检查
+          # 手动下载 Ghostscript 源码包
           mkdir -p dl
           wget -O dl/ghostscript-10.03.1.tar.gz https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10031/ghostscript-10.03.1.tar.gz
 
@@ -68,37 +68,50 @@ jobs:
             printf '\tconversion of PostScript and PDF files.\n'
             printf 'endef\n\n'
 
+            printf 'CONFIGURE_ARGS += \\\n'
+            printf '\t--host=$(GNU_TARGET_NAME) \\\n'
+            printf '\t--build=$(GNU_HOST_NAME) \\\n'
+            printf '\t--prefix=/usr \\\n'
+            printf '\t--disable-gtk \\\n'
+            printf '\t--without-x \\\n'
+            printf '\t--without-tesseract \\\n'
+            printf '\t--with-drivers=ALL \\\n'
+            printf '\t--with-system-libtiff=no\n\n'
+
             printf 'define Build/Compile\n'
-            printf '\tcd $(PKG_BUILD_DIR) && ./configure \\\n'
-            printf '\t\t--host=$(GNU_TARGET_NAME) \\\n'
-            printf '\t\t--build=$(GNU_HOST_NAME) \\\n'
-            printf '\t\t--prefix=/usr \\\n'
-            printf '\t\t--disable-gtk \\\n'
-            printf '\t\t--without-x \\\n'
-            printf '\t\t--without-tesseract \\\n'
-            printf '\t\t--with-drivers=ALL \\\n'
-            printf '\t\t--with-system-libtiff=no \\\n'
-            printf '\t\tCC="$(TARGET_CC)" \\\n'
-            printf '\t\tCXX="$(TARGET_CXX)" \\\n'
-            printf '\t\tCFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \\\n'
-            printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)" \\\n'
-            printf '\t\t|| true\n'
             printf '\t$(MAKE) -C $(PKG_BUILD_DIR) \\\n'
             printf '\t\tCC="$(TARGET_CC)" \\\n'
             printf '\t\tCXX="$(TARGET_CXX)" \\\n'
             printf '\t\tCFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \\\n'
             printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)" \\\n'
-            printf '\t\tso\n'
+            printf '\t\tall\n'
             printf 'endef\n\n'
 
             printf 'define Package/ghostscript/install\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/bin\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/lib\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource\n'
-
-            printf '\t$(CP) $(PKG_BUILD_DIR)/bin/gs $(1)/usr/bin/\n'
-            printf '\t$(CP) $(PKG_BUILD_DIR)/sobin/libgs.so* $(1)/usr/lib/\n'
-            printf '\t$(CP) -r $(PKG_BUILD_DIR)/Resource/* $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource/\n'
+            printf '\t# 尝试复制可执行文件（可能位于不同位置）\n'
+            printf '\tif [ -f $(PKG_BUILD_DIR)/bin/gs ]; then \\\n'
+            printf '\t\t$(CP) $(PKG_BUILD_DIR)/bin/gs $(1)/usr/bin/ ; \\\n'
+            printf '\telif [ -f $(PKG_BUILD_DIR)/gs ]; then \\\n'
+            printf '\t\t$(CP) $(PKG_BUILD_DIR)/gs $(1)/usr/bin/ ; \\\n'
+            printf '\telse \\\n'
+            printf '\t\techo "ERROR: gs executable not found!" ; \\\n'
+            printf '\t\tls -la $(PKG_BUILD_DIR)/bin/ ; \\\n'
+            printf '\t\tls -la $(PKG_BUILD_DIR)/ ; \\\n'
+            printf '\t\texit 1 ; \\\n'
+            printf '\tfi\n'
+            printf '\t# 复制共享库\n'
+            printf '\tif [ -d $(PKG_BUILD_DIR)/sobin ]; then \\\n'
+            printf '\t\t$(CP) $(PKG_BUILD_DIR)/sobin/libgs.so* $(1)/usr/lib/ ; \\\n'
+            printf '\telif [ -d $(PKG_BUILD_DIR)/lib ]; then \\\n'
+            printf '\t\t$(CP) $(PKG_BUILD_DIR)/lib/libgs.so* $(1)/usr/lib/ ; \\\n'
+            printf '\tfi\n'
+            printf '\t# 复制资源文件\n'
+            printf '\tif [ -d $(PKG_BUILD_DIR)/Resource ]; then \\\n'
+            printf '\t\t$(CP) -r $(PKG_BUILD_DIR)/Resource/* $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource/ ; \\\n'
+            printf '\tfi\n'
             printf 'endef\n\n'
 
             printf '$(eval $(call BuildPackage,ghostscript))\n'
