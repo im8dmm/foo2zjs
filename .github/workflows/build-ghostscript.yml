@@ -37,11 +37,11 @@ jobs:
           ./scripts/feeds install libcups libjpeg-turbo libpng zlib freetype
           make defconfig
 
-      - name: Create ghostscript package with proper tabs
+            - name: Create ghostscript package with proper tabs
         run: |
           cd $SDK_DIR
           mkdir -p package/ghostscript
-          
+
           {
             printf 'include $(TOPDIR)/rules.mk\n\n'
             printf 'PKG_NAME:=ghostscript\n'
@@ -53,7 +53,7 @@ jobs:
             printf 'PKG_LICENSE:=AGPL-3.0\n'
             printf 'PKG_LICENSE_FILES:=COPYING\n\n'
             printf 'include $(INCLUDE_DIR)/package.mk\n\n'
-            
+
             printf 'define Package/ghostscript\n'
             printf '\tSECTION:=utils\n'
             printf '\tCATEGORY:=Utilities\n'
@@ -61,13 +61,13 @@ jobs:
             printf '\tURL:=https://www.ghostscript.com/\n'
             printf '\tDEPENDS:=+libcups +libjpeg-turbo +libpng +zlib +libfreetype\n'
             printf 'endef\n\n'
-            
+
             printf 'define Package/ghostscript/description\n'
             printf '\tGhostscript is a high-performance PostScript and PDF interpreter and\n'
             printf '\trendering engine. It is used for tasks such as printing, display, and\n'
             printf '\tconversion of PostScript and PDF files.\n'
             printf 'endef\n\n'
-            
+
             printf 'define Build/Compile\n'
             printf '\tcd $(PKG_BUILD_DIR) && ./configure \\\n'
             printf '\t\t--host=$(GNU_TARGET_NAME) \\\n'
@@ -90,17 +90,17 @@ jobs:
             printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)" \\\n'
             printf '\t\tso\n'
             printf 'endef\n\n'
-            
+
             printf 'define Package/ghostscript/install\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/bin\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/lib\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource\n'
-            
+
             printf '\t$(CP) $(PKG_BUILD_DIR)/bin/gs $(1)/usr/bin/\n'
             printf '\t$(CP) $(PKG_BUILD_DIR)/sobin/libgs.so* $(1)/usr/lib/\n'
             printf '\t$(CP) -r $(PKG_BUILD_DIR)/Resource/* $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource/\n'
             printf 'endef\n\n'
-            
+
             printf '$(eval $(call BuildPackage,ghostscript))\n'
           } > package/ghostscript/Makefile
 
