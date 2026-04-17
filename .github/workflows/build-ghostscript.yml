@@ -20,24 +20,25 @@ jobs:
       - name: Setup OpenWrt SDK environment
         run: |
           cd $SDK_DIR
-          # 配置 Git 以解决网络不稳定问题
+
+          # 优化 Git 配置以应对网络不稳定
           git config --global http.postBuffer 524288000
           git config --global http.lowSpeedLimit 0
           git config --global http.lowSpeedTime 999999
           git config --global core.compression 0
-          
+
           # 注释掉用不到的 telephony feed
           sed -i '/telephony/s/^/#/' feeds.conf.default
-          
-          # 使用重试机制更新 feeds
+
+          # 更新 feeds，若失败则等待 30 秒后重试一次
           ./scripts/feeds update -a || (sleep 30 && ./scripts/feeds update -a)
           ./scripts/feeds install -a
-          
-          # 安装编译 ghostscript 所需的依赖
+
+          # 安装编译 ghostscript 所需的依赖库
           ./scripts/feeds install libcups libjpeg-turbo libpng zlib freetype
           make defconfig
 
-            - name: Create ghostscript package with proper tabs
+      - name: Create ghostscript package with proper tabs
         run: |
           cd $SDK_DIR
           mkdir -p package/ghostscript
