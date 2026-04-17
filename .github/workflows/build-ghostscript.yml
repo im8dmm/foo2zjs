@@ -1,117 +1,19 @@
-name: Build ghostscript for ImmortalWrt
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download OpenWrt SDK
-        run: |
-          SDK_URL="https://downloads.openwrt.org/releases/23.05.4/targets/mediatek/filogic/openwrt-sdk-23.05.4-mediatek-filogic_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-          wget -O sdk.tar.xz "$SDK_URL"
-          echo "正在解压 SDK..."
-          tar -xf sdk.tar.xz
-          SDK_DIR=$(tar -tf sdk.tar.xz | head -1 | cut -f1 -d"/")
-          echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
-          rm sdk.tar.xz
-
       - name: Setup OpenWrt SDK environment
         run: |
           cd $SDK_DIR
-          # 注释掉用不到的 telephony feed，避免其下载失败影响后续步骤
+          # 配置 Git 以解决网络不稳定问题
+          git config --global http.postBuffer 524288000
+          git config --global http.lowSpeedLimit 0
+          git config --global http.lowSpeedTime 999999
+          git config --global core.compression 0
+          
+          # 注释掉用不到的 telephony feed
           sed -i '/telephony/s/^/#/' feeds.conf.default
-          ./scripts/feeds update -a
+          
+          # 使用重试机制更新 feeds
+          ./scripts/feeds update -a || (sleep 30 && ./scripts/feeds update -a)
           ./scripts/feeds install -a
+          
           # 安装编译 ghostscript 所需的依赖
           ./scripts/feeds install libcups libjpeg-turbo libpng zlib freetype
           make defconfig
-
-      - name: Create ghostscript package with proper tabs
-        run: |
-          cd $SDK_DIR
-          mkdir -p package/ghostscript
-          
-          # 使用 printf 生成 Makefile，确保 Tab 字符正确
-          {
-            printf 'include $(TOPDIR)/rules.mk\n\n'
-            printf 'PKG_NAME:=ghostscript\n'
-            printf 'PKG_VERSION:=10.03.1\n'
-            printf 'PKG_RELEASE:=1\n\n'
-            printf 'PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz\n'
-            printf 'PKG_SOURCE_URL:=https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10031/\n'
-            printf 'PKG_HASH:=31cd63a1ddecebc1bc5ccead24b5af3b7f4272d91f0e6b04a813d6589d8a17b0\n\n'
-            printf 'PKG_LICENSE:=AGPL-3.0\n'
-            printf 'PKG_LICENSE_FILES:=COPYING\n\n'
-            printf 'include $(INCLUDE_DIR)/package.mk\n\n'
-            
-            printf 'define Package/ghostscript\n'
-            printf '\tSECTION:=utils\n'
-            printf '\tCATEGORY:=Utilities\n'
-            printf '\tTITLE:=Ghostscript GPL PostScript interpreter\n'
-            printf '\tURL:=https://www.ghostscript.com/\n'
-            printf '\tDEPENDS:=+libcups +libjpeg-turbo +libpng +zlib +libfreetype\n'
-            printf 'endef\n\n'
-            
-            printf 'define Package/ghostscript/description\n'
-            printf '\tGhostscript is a high-performance PostScript and PDF interpreter and\n'
-            printf '\trendering engine. It is used for tasks such as printing, display, and\n'
-            printf '\tconversion of PostScript and PDF files.\n'
-            printf 'endef\n\n'
-            
-            printf 'define Build/Compile\n'
-            printf '\tcd $(PKG_BUILD_DIR) && ./configure \\\n'
-            printf '\t\t--host=$(GNU_TARGET_NAME) \\\n'
-            printf '\t\t--build=$(GNU_HOST_NAME) \\\n'
-            printf '\t\t--prefix=/usr \\\n'
-            printf '\t\t--disable-gtk \\\n'
-            printf '\t\t--without-x \\\n'
-            printf '\t\t--without-tesseract \\\n'
-            printf '\t\t--with-drivers=ALL \\\n'
-            printf '\t\t--with-system-libtiff=no \\\n'
-            printf '\t\tCC="$(TARGET_CC)" \\\n'
-            printf '\t\tCXX="$(TARGET_CXX)" \\\n'
-            printf '\t\tCFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \\\n'
-            printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)" \\\n'
-            printf '\t\t|| true\n'
-            printf '\t$(MAKE) -C $(PKG_BUILD_DIR) \\\n'
-            printf '\t\tCC="$(TARGET_CC)" \\\n'
-            printf '\t\tCXX="$(TARGET_CXX)" \\\n'
-            printf '\t\tCFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \\\n'
-            printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)" \\\n'
-            printf '\t\tso\n'
-            printf 'endef\n\n'
-            
-            printf 'define Package/ghostscript/install\n'
-            printf '\t$(INSTALL_DIR) $(1)/usr/bin\n'
-            printf '\t$(INSTALL_DIR) $(1)/usr/lib\n'
-            printf '\t$(INSTALL_DIR) $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource\n'
-            
-            printf '\t$(CP) $(PKG_BUILD_DIR)/bin/gs $(1)/usr/bin/\n'
-            printf '\t$(CP) $(PKG_BUILD_DIR)/sobin/libgs.so* $(1)/usr/lib/\n'
-            printf '\t$(CP) -r $(PKG_BUILD_DIR)/Resource/* $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource/\n'
-            printf 'endef\n\n'
-            
-            printf '$(eval $(call BuildPackage,ghostscript))\n'
-          } > package/ghostscript/Makefile
-
-      - name: Compile ghostscript
-        run: |
-          cd $SDK_DIR
-          make package/ghostscript/compile V=s
-
-      - name: Collect artifacts
-        run: |
-          cd $SDK_DIR
-          mkdir -p artifacts
-          find bin -name "*.ipk" -exec cp {} artifacts/ \;
-          echo "编译完成的软件包："
-          ls -la artifacts/
-
-      - name: Upload IPK files
-        uses: actions/upload-artifact@v4
-        with:
-          name: ghostscript-ipks
-          path: ${{ env.SDK_DIR }}/artifacts/
-          retention-days: 7
