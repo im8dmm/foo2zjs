@@ -1,7 +1,7 @@
 name: Build foo2zjs for ImmortalWrt
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -9,7 +9,6 @@ jobs:
     steps:
       - name: Download OpenWrt SDK
         run: |
-          # 从 OpenWrt 官方或镜像站直接下载 SDK
           SDK_URL="https://downloads.openwrt.org/releases/23.05.4/targets/mediatek/filogic/openwrt-sdk-23.05.4-mediatek-filogic_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
           wget -O sdk.tar.xz "$SDK_URL"
           echo "正在解压 SDK..."
@@ -21,15 +20,10 @@ jobs:
       - name: Setup OpenWrt SDK environment
         run: |
           cd $SDK_DIR
-          
-          # 使用国内镜像加速 feeds 下载
-          sed -i 's|https://git.openwrt.org/feed/|https://mirrors.tuna.tsinghua.edu.cn/openwrt/feed/|g' feeds.conf.default
+          sed -i '/telephony/s/^/#/' feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          
-          # 安装编译依赖
           ./scripts/feeds install cups ghostscript libjpeg-turbo libcups
-          
           make defconfig
 
       - name: Create foo2zjs package
@@ -59,7 +53,7 @@ jobs:
             SECTION:=utils
             CATEGORY:=Utilities
             TITLE:=A linux printer driver for ZjStream protocol
-            URL:=http://foo2zjs.rkkda.com/
+            URL:=https://github.com/koenkooi/foo2zjs
             DEPENDS:=+cups +libcups +ghostscript +libjpeg-turbo
           endef
 
