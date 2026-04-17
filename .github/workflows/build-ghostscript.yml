@@ -50,7 +50,7 @@ jobs:
             printf 'PKG_RELEASE:=1\n\n'
             printf 'PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz\n'
             printf 'PKG_SOURCE_URL:=https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10031/\n'
-            printf 'PKG_MIRROR_HASH:=skip\n\n'
+            printf 'PKG_HASH:=31cd01682ad23a801cc3bbb222a55f07c4ea3e068bdfb447792d54db21a2e8ad\n\n'
             printf 'PKG_LICENSE:=AGPL-3.0\n'
             printf 'PKG_LICENSE_FILES:=COPYING\n\n'
             printf 'include $(INCLUDE_DIR)/package.mk\n\n'
