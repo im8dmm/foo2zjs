@@ -37,7 +37,7 @@ jobs:
           mkdir -p dl
           wget -O dl/ghostscript-10.03.1.tar.gz https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10031/ghostscript-10.03.1.tar.gz
 
-      - name: Create ghostscript package with proper tabs
+            - name: Create ghostscript package with proper tabs
         run: |
           cd $SDK_DIR
           mkdir -p package/ghostscript
@@ -64,8 +64,18 @@ jobs:
 
             printf 'define Package/ghostscript/description\n'
             printf '\tGhostscript is a high-performance PostScript and PDF interpreter and\n'
-            printf '\trendering engine. It is used for tasks such as printing, display, and\n'
-            printf '\tconversion of PostScript and PDF files.\n'
+            printf '\trendering engine.\n'
+            printf 'endef\n\n'
+
+            # 使用 Build/Prepare 钩子在解压后打补丁
+            printf 'define Build/Prepare\n'
+            printf '\t$(call Build/Prepare/Default)\n'
+            # 修复 musl 下 struct timeval 重复定义
+            printf '\tsed -i "/^struct timeval {/,/^};/d" $(PKG_BUILD_DIR)/base/time_.h\n'
+            # 修复缺少 stdint.h 导致的 intptr_t 未声明
+            printf '\tsed -i "1i #include <stdint.h>" $(PKG_BUILD_DIR)/base/gxicolor.c\n'
+            printf '\tsed -i "1i #include <stdint.h>" $(PKG_BUILD_DIR)/base/gxp1fill.c || true\n'
+            printf '\tsed -i "1i #include <stdint.h>" $(PKG_BUILD_DIR)/base/gxpcmap.c || true\n'
             printf 'endef\n\n'
 
             printf 'CONFIGURE_ARGS += \\\n'
@@ -79,21 +89,6 @@ jobs:
             printf '\t--with-system-libtiff=no\n\n'
 
             printf 'define Build/Compile\n'
-            printf '\tcd $(PKG_BUILD_DIR) && ./configure \\\n'
-            printf '\t\t--host=$(GNU_TARGET_NAME) \\\n'
-            printf '\t\t--build=$(GNU_HOST_NAME) \\\n'
-            printf '\t\t--prefix=/usr \\\n'
-            printf '\t\t--disable-gtk \\\n'
-            printf '\t\t--without-x \\\n'
-            printf '\t\t--without-tesseract \\\n'
-            printf '\t\t--with-drivers=ALL \\\n'
-            printf '\t\t--with-system-libtiff=no \\\n'
-            printf '\t\tCC="$(TARGET_CC)" \\\n'
-            printf '\t\tCXX="$(TARGET_CXX)" \\\n'
-            printf '\t\tCFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \\\n'
-            printf '\t\tLDFLAGS="$(TARGET_LDFLAGS)"\n'
-            printf '\t# 修复 musl 下 struct timeval 重复定义问题\n'
-            printf '\tsed -i "/^struct timeval {/,/^};/d" $(PKG_BUILD_DIR)/base/time_.h\n'
             printf '\t$(MAKE) -C $(PKG_BUILD_DIR) \\\n'
             printf '\t\tCC="$(TARGET_CC)" \\\n'
             printf '\t\tCXX="$(TARGET_CXX)" \\\n'
@@ -106,6 +101,7 @@ jobs:
             printf '\t$(INSTALL_DIR) $(1)/usr/bin\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/lib\n'
             printf '\t$(INSTALL_DIR) $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource\n'
+            printf '\t# 尝试复制可执行文件（可能位于不同位置）\n'
             printf '\tif [ -f $(PKG_BUILD_DIR)/bin/gs ]; then \\\n'
             printf '\t\t$(CP) $(PKG_BUILD_DIR)/bin/gs $(1)/usr/bin/ ; \\\n'
             printf '\telif [ -f $(PKG_BUILD_DIR)/gs ]; then \\\n'
@@ -116,11 +112,13 @@ jobs:
             printf '\t\tls -la $(PKG_BUILD_DIR)/ ; \\\n'
             printf '\t\texit 1 ; \\\n'
             printf '\tfi\n'
+            printf '\t# 复制共享库\n'
             printf '\tif [ -d $(PKG_BUILD_DIR)/sobin ]; then \\\n'
             printf '\t\t$(CP) $(PKG_BUILD_DIR)/sobin/libgs.so* $(1)/usr/lib/ ; \\\n'
             printf '\telif [ -d $(PKG_BUILD_DIR)/lib ]; then \\\n'
             printf '\t\t$(CP) $(PKG_BUILD_DIR)/lib/libgs.so* $(1)/usr/lib/ ; \\\n'
             printf '\tfi\n'
+            printf '\t# 复制资源文件\n'
             printf '\tif [ -d $(PKG_BUILD_DIR)/Resource ]; then \\\n'
             printf '\t\t$(CP) -r $(PKG_BUILD_DIR)/Resource/* $(1)/usr/share/ghostscript/$(PKG_VERSION)/Resource/ ; \\\n'
             printf '\tfi\n'
